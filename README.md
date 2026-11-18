@@ -1,4 +1,4 @@
-# loxone-mcp-gen1 · v0.8
+# loxone-mcp-gen1 · v0.9
 
 **Loxone MCP for Miniserver Gen 1**
 
@@ -16,20 +16,20 @@ Most Loxone MCP servers can only *control* devices (switch lights, read states).
 |---|---|
 | Read | `project_list_files`, `project_open` (with automatic comparison to the last Miniserver backup and the Config autosave), `project_list_pages`, `project_get_page`, `project_find`, `project_get_block`, `project_trace`, `project_text` (readable text view) |
 | Catalog | `catalog_learn` (learns block types and templates from your own projects), `catalog_list_types`, `catalog_get_type` |
-| Edit logic | `block_add`, `block_clone` (also large blocks: lighting controller, room controller, automatic blinds), `ref_add`, `block_connect`, `block_disconnect`, `block_set_params`, `block_set_inverted`, `block_set_position`, `block_remove` |
+| Edit logic | `block_add`, `block_clone` (also large blocks: lighting controller, room controller, automatic blinds), `ref_add`, `block_connect`, `block_disconnect`, `block_set_params`, `block_set_inverted`, `block_set_position`, `block_remove`, `page_add` (new program page) |
 | Build plan | `build_plan`: many steps in one call, **all or nothing**, names via `als`/`$name`, missing placeholders created automatically |
 | Status with icons | `state_add` (text, icon and colour per state), `icon_find` (searches the Loxone icon library) |
-| Peripherals | `io_add_virtual_input` (incl. text inputs), `io_set_display`, `io_set_statistics`, `io_add_command` (e.g. Home Assistant webhook), `rs232_add`, `periphery_remove` |
+| Peripherals | `io_add_virtual_input` (incl. text inputs), `io_set_display`, `io_set_statistics`, `io_add_command` (e.g. Home Assistant webhook), `rs232_add`, `periphery_remove`, `notification_add` (Loxone app notification) |
 | Rooms/categories | `structure_list`, `structure_remove`, `structure_reassign` |
 | Working copy | `project_changes`, `project_validate`, `project_lint`, `project_undo`, `project_discard`, `project_save` (always a new file, never overwrites) |
 | Miniserver (read only) | `live_status`, `live_page`, `live_block`, `live_history`, `backup_miniserver` (FTP download of the running program into a local Git repo, with a plain-text diff), `verify_load` (after loading: waits for the Miniserver, backs up, compares with the expected file) |
 | Analysis & recipes | `project_analyze`, `recipe_list`, `recipe_apply` |
 
-Tool descriptions and messages are currently in **German**.
+Tool descriptions are in **English**; result messages and build-plan keys are still German.
 
 ## Requirements
 
-- Windows (icon search and recycle-bin cleanup use Windows paths/APIs; the core works elsewhere)
+- Windows recommended (the icon library path defaults to Loxone Config's install folder; set `LOXONE_ICON_LIBRARY` elsewhere). On other systems old versions are moved to a `.loxone-papierkorb` folder instead of the recycle bin
 - Python ≥ 3.11 and [uv](https://docs.astral.sh/uv/)
 - Loxone Config installed (for the icon library) and your project files
 - Optional: Git (for `backup_miniserver`)
@@ -94,9 +94,15 @@ Then, in the assistant: run `catalog_learn` once (it learns the block types from
 ## Tests
 
 ```bash
+uv run python tests/test_units.py          # no project needed
 uv run python test_smoke.py "C:\path\to\your\project.Loxone"
 ```
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Changelog
+
+- **0.9.0** – `page_add`, `notification_add`, English tool descriptions, unit tests, recycle fallback outside Windows, `build_plan` ops `trennen`, `seite`, `mitteilung`, `kategorie_umhaengen`, `kategorie_loeschen`; empty virtual outputs can be removed; parser accepts attributes starting with a digit (newer Config files).
+- **0.8.0** – first public release.

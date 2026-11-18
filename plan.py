@@ -23,6 +23,9 @@ Ops (deutsch, englische Kurzform in Klammern):
   position (move)       baustein, x, y, [seite]
   loeschen (remove)     baustein, [seite]
   peripherie_loeschen   baustein   (ungenutzter virtueller Ein-/Ausgang, Konstante …)
+  seite                 titel, [raum, kategorie]
+  mitteilung            titel, text, quelle, seite, [quelle_ausgang, min_ms]
+  kategorie_umhaengen   von, nach, [art]    kategorie_loeschen  name, [art]
 """
 from __future__ import annotations
 
@@ -120,6 +123,16 @@ def run_plan(ed: Editor, steps: list[dict]) -> dict:
             res = ed.remove_block(g("baustein"), g("seite"))
         elif op == "peripherie_loeschen":
             res = ed.remove_periphery(g("baustein"))
+        elif op == "seite":
+            res = ed.add_page(g("titel"), s.get("raum"), s.get("kategorie"))
+        elif op == "mitteilung":
+            src = g("quelle")
+            res = ed.add_notification(g("titel"), s["text"], on_page(src, g("seite"), "source"), g("seite"),
+                                      s.get("quelle_ausgang"), s.get("min_ms", 5000))
+        elif op == "kategorie_umhaengen":
+            res = ed.reassign_structure(s.get("art", "kategorie"), s["von"], s["nach"])
+        elif op == "kategorie_loeschen":
+            res = ed.remove_structure(s.get("art", "kategorie"), s["name"])
         else:
             raise ProjectError(f"Unbekannte op '{s.get('op')}'.")
         if s.get("als"):

@@ -465,6 +465,87 @@ class Editor:
                 "hinweis": "Ohne Verbindungen angelegt. Einstellungen (Stimmungen, Zeiten …) stammen vom Original; "
                            "bitte in Config prüfen und anpassen."}
 
+    # ---------- neue Programmseite ----------
+    def add_page(self, title: str, room: str | None = None, category: str | None = None) -> dict:
+        """Legt eine leere Programmseite an (hinter der letzten vorhandenen Seite), optional mit
+        Raum und Kategorie – Aufbau wie von Loxone Config: <C Type="Page"><IoData Cr Pr/></C>."""
+        pr = self.project
+        title = (title or "").strip()
+        if not title or re.search(r"[<>%]", title):
+            raise ProjectError("Titel fehlt oder enthält < > %.")
+        if any(p.title.lower() == title.lower() for p in pr.pages):
+            raise ProjectError(f"Eine Seite '{title}' gibt es schon.")
+        if not pr.pages:
+            raise ProjectError("Keine vorhandene Seite als Vorlage gefunden.")
+        last = pr.pages[-1]
+
+        def pick(kind, spec):
+            if not spec:
+                return None
+            ids = [u for u, t in (pr.places if kind == "raum" else pr.categories).items() if t.lower() == spec.lower()]
+            if len(ids) != 1:
+                raise ProjectError(f"{kind.capitalize()} '{spec}' nicht eindeutig gefunden.")
+            return ids[0]
+        io = {k: v for k, v in (("Cr", pick("kategorie", category)), ("Pr", pick("raum", room))) if v}
+        puuid, _ = self.pt.new_block_uuids(0)
+        el = ET.Element("C", {"Type": "Page", "V": last.elem.get("V", "179"), "U": puuid, "Title": title,
+                              "WF": last.elem.get("WF", "16384")})
+        ET.SubElement(el, "IoData", io)
+
+        def run():
+            self.pt.insert_block(last.parent.uuid, el)
+            self.pt.bump("NextObj", 1)
+        self._apply(f"Neue Seite '{title}'", run)
+        return {"angelegt": title, "kennung": "#" + self.project.short(self.project.blocks[puuid]),
+                "raum": room, "kategorie": category}
+
+    # ---------- Loxone-Mitteilung (Push der Loxone-App) ----------
+    def add_notification(self, title: str, text: str, source: str, page: str, source_key: str | None = None,
+                         min_time_ms: int = 5000) -> dict:
+        """Legt eine Mitteilung (Loxone-App-Push/Systemmeldung) an und schließt 'source' auf 'page'
+        über einen Mitteilungs-Platzhalter (OutputRefLM) an. text = Meldungstext bei steigender Flanke."""
+        import copy
+        pr = self.project
+        if not title or re.search(r"[<>%]", title):
+            raise ProjectError("Titel fehlt oder enthält < > %.")
+        ex = next((b for b in pr.blocks.values() if b.type == "Notification" and b.parent is not None
+                   and b.parent.type == "LoggerOutCaption" and not b.elem.get("Sys")), None)
+        exr = next((b for b in pr.blocks.values() if b.type == "OutputRefLM" and b.elem.find("LoggerMailer") is not None), None)
+        if ex is None or exr is None:
+            raise ProjectError("Keine vorhandene Mitteilung mit Platzhalter als Vorlage im Projekt.")
+        if any(b.type == "Notification" and b.title.lower() == title.lower() for b in pr.blocks.values()):
+            raise ProjectError(f"Eine Mitteilung '{title}' gibt es schon.")
+        pg = pr.find_page(page)
+
+        def run():
+            note = self._clone_periphery(ex, {"Title": title}, "Mitteilung")
+            el = copy.deepcopy(exr.elem)
+            el.tail = None
+            cos = el.findall("Co")
+            ruuid, cus = self.pt.new_block_uuids(len(cos))
+            w, h = _px(exr, "Px2") - _px(exr, "Px"), _px(exr, "Py2") - _px(exr, "Py")
+            x, y = self._free_spot(pg, "out", w, h)
+            for k in ("LtE", "Desc"):
+                el.attrib.pop(k, None)
+            el.attrib.update({"U": ruuid, "Title": title, "Ref": note.uuid, "Px": str(x), "Py": str(y),
+                              "Px2": str(x + w), "Py2": str(y + h)})
+            for co, cu in zip(cos, cus):
+                for i in list(co):
+                    co.remove(i)
+                co.attrib.pop("Nc", None)
+                co.set("U", cu)
+            lm = el.find("LoggerMailer")
+            lm.attrib.clear()
+            lm.attrib.update({"RefNotification": note.uuid, "On": text, "MinimumTime": str(int(min_time_ms)), "NL": "1"})
+
+            def ins():
+                self.pt.insert_block(pg.uuid, el)
+                self.pt.bump("NextObj", 1)
+            self._apply(f"Neu: Mitteilungs-Platzhalter '{title}' auf Seite {pg.title}", ins)
+            self.connect(source, source_key, "#" + self.project.short(self.project.blocks[ruuid]), None, pg.title)
+            return {"angelegt": self.project.name(note), "seite": pg.title, "text": text}
+        return self._atomic(run)
+
     # ---------- mehrere Schritte als eine Einheit ----------
     def _atomic(self, fn):
         start = len(self.log)
@@ -677,7 +758,7 @@ class Editor:
 
     # ---------- Peripherie löschen ----------
     REMOVABLE_PERIPHERY = {"WeatherServer", "VirtualIn", "VirtualTextIn", "VirtualOutCmd", "VirtualUdpInCmd",
-                           "VirtualHttpInCmd", "VirtualHttpIn", "Constant"}
+                           "VirtualHttpInCmd", "VirtualHttpIn", "Constant", "VirtualOut"}
 
     def remove_periphery(self, spec: str) -> dict:
         """Löscht ein Peripherie-Objekt (virtueller Ein-/Ausgang, Konstante, Wetterserver), wenn es
@@ -688,6 +769,8 @@ class Editor:
             raise ProjectError(f"'{pr.name(b)}' ist kein löschbares Peripherie-Objekt ({', '.join(sorted(self.REMOVABLE_PERIPHERY))}).")
         if b.page is not None:
             raise ProjectError("Das Objekt liegt auf einer Programmseite; dafür block_remove verwenden.")
+        if b.type == "VirtualOut" and b.elem.find("C") is not None:
+            raise ProjectError(f"'{pr.name(b)}' enthält noch Befehle; erst diese löschen (periphery_remove).")
         own = {e.get("U") for e in b.elem.iter() if e.get("U")}
         for e in b.elem.iter():
             for k in ("SpStates", "VisuUUID"):

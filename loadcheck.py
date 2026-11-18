@@ -40,8 +40,18 @@ def _short_diff(d: dict) -> dict:
 
 
 def recycle(paths: list[Path]) -> list[str]:
-    """Dateien in den Windows-Papierkorb legen (nicht endgültig löschen)."""
+    """Dateien in den Papierkorb legen (nicht endgültig löschen). Unter Windows der echte Papierkorb,
+    sonst ein Ordner '.loxone-papierkorb' neben den Dateien."""
+    import os
+    import shutil
     done = []
+    if os.name != "nt":
+        for p in paths:
+            trash = p.parent / ".loxone-papierkorb"
+            trash.mkdir(exist_ok=True)
+            shutil.move(str(p), str(trash / p.name))
+            done.append(p.name)
+        return done
     for p in paths:
         # Pfad als PowerShell-Literal einbetten (-Command reicht keine $args weiter)
         lit = "'" + str(p).replace("'", "''") + "'"
