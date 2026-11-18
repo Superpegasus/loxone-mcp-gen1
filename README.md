@@ -1,4 +1,6 @@
-# loxone-projekt-mcp
+# loxone-mcp-gen1 · v0.8
+
+**Loxone MCP for Miniserver Gen 1**
 
 An MCP server that lets an AI assistant (e.g. Claude) **read, analyze and safely edit copies of Loxone Config project files** (`.Loxone`) — including on a **Miniserver Gen 1**, which the official Loxone MCP does not support.
 
@@ -39,9 +41,9 @@ Add to your MCP client configuration (example for Claude Desktop):
 ```json
 {
   "mcpServers": {
-    "loxone-projekt": {
+    "loxone-mcp-gen1": {
       "command": "uv",
-      "args": ["run", "--directory", "C:\\path\\to\\loxone-projekt-mcp", "server.py"],
+      "args": ["run", "--directory", "C:\\path\\to\\loxone-mcp-gen1", "server.py"],
       "env": {
         "LOXONE_PROJECTS_DIR": "C:\\Users\\<you>\\Documents\\Loxone\\Loxone Config\\Projects",
         "LOXONE_HOST": "http://<miniserver-ip>",
